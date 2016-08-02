@@ -11,6 +11,9 @@ T CLuaFile::CallFunc(const char *pFuncName, const CLuaFile::LuaCallfuncParams& p
 		throw CLuaFile::CallException(m_Filename.c_str(), (std::string("Couldn't get function ") + std::string(pFuncName)).c_str());
 
 	// push the arguments onto the stack (in direct order)
+	if(!lua_checkstack(params.Num()+2))
+		throw CLuaFile::CallException(m_Filename.c_str(), (std::string("Could not allocate enough stackspace to call ") + std::string(pFuncName)).c_str());
+		
 	CLuaFile::LuaCallfuncParams::Arg_base* conductor = (CLuaFile::LuaCallfuncParams::Arg_base*)params.BasePtr();
 	for(int i = 0; i < params.Num(); i++)
 	{
