@@ -1,5 +1,5 @@
-#ifndef ENGINE_CLIENT_LUAFILE_H
-#define ENGINE_CLIENT_LUAFILE_H
+#ifndef ENGINE_SERVER_LUAFILE_H
+#define ENGINE_SERVER_LUAFILE_H
 
 #include <lua.hpp>
 #include <engine/external/luabridge/LuaBridge.h>
@@ -14,21 +14,22 @@
 	catch (std::exception& e) \
 	{ printf("LUA EXCEPTION: %s\n", e.what()); } }
 
-class IClient;
-class IStorageTW;
+class IServer;
+class IStorage;
 class CLua;
 
 class CLuaFile
 {
-	MACRO_ALLOC_HEAP()
-
 	friend class CLuaBinding;
+
 public:
-	enum
+	class CallException : public std::exception
 	{
-		LUAFILE_STATE_ERROR=-1,
-		LUAFILE_STATE_IDLE,
-		LUAFILE_STATE_LOADED
+	public:
+		CallException(const char *pFilename, const char *what)
+		{
+			dbg_msg("luafile/CALLEXCEPTION", "%s  ||  what: %s", pFilename, what);
+		}
 	};
 
 	enum
@@ -43,39 +44,114 @@ public:
 
 	const char *m_pErrorStr;
 
+	class LuaCallfuncParams
+	{
+		int m_NumArgs;
+		void *m_pArgList;
+
+	public:
+		struct Arg_base
+		{
+			~Arg_base()
+			{
+				if(next)
+					delete next;
+			}
+
+			int t;
+			Arg_base* Next() const { return next; }
+
+		protected:
+			Arg_base* next;
+		};
+
+		template<typename T>
+		struct Arg : public Arg_base
+		{
+			void* operator new(size_t size) { return mem_alloc((unsigned int)size, 0); }
+			void operator delete(void *block) { mem_free(block); }
+
+			T v;
+			Arg(int type, T val, Arg_base *append_to=0) : t(type), v(val) { if(append_to) append_to->next = this; }
+		};
+
+
+		LuaCallfuncParams()
+		{
+			m_NumArgs = 0;
+			m_pArgList = 0;
+		}
+
+		~LuaCallfuncParams()
+		{
+			if(m_pArgList)
+				delete m_pArgList;
+		}
+
+		template <typename T>
+		LuaCallfuncParams& AddArg(int type, T val)
+		{
+			Arg_base<T>* next = 0;
+
+			if(!m_pArgList)
+				m_pArgList = new Arg<T>(type, val);
+			else
+			{
+				next = (Arg<T>*)m_pArgList;
+				while(next->Next() != NULL)
+					next = next->Next();
+				new Arg<T>(type, val, next);
+			}
+
+			m_NumArgs++;
+			return *this;
+		}
+
+		inline int Num() const { return m_NumArgs; }
+		void* BasePtr() const { return m_pArgList; }
+
+
+		enum
+		{
+			CALLTYPE_INT = 0,
+			CALLTYPE_BOOL,
+
+		};
+
+	};
+
 private:
 	CLua *m_pLua;
 	lua_State *m_pLuaState;
-	int m_State;
 	std::string m_Filename;
 
-	int m_UID; // the script can use this to identify itself
+	//int m_UID; // the script can use this to identify itself
 	int m_PermissionFlags;
 
-	char m_aScriptTitle[64];
 	char m_aScriptInfo[128];
-	bool m_ScriptHasSettings;
-	bool m_ScriptAutoload;
 
 public:
-	CLuaFile(CLua *pLua, std::string Filename, bool Autoload);
+	CLuaFile(CLua *pLua, std::string Filename);
 	~CLuaFile();
 	void Init();
-	void Reset(bool error = false);
 	void LoadPermissionFlags();
-	void Unload(bool error = false);
 	luabridge::LuaRef GetFunc(const char *pFuncName);
-	template<class T> T CallFunc(const char *pFuncName);
 
-	int State() const { return m_State; }
-	int GetUID() const { return m_UID; }
+	// kinda lowlevel stuff
+	/**
+	 * Calls a lua function in an somehow epic way. I just wanted to try a concept I worked out for this.
+	 * @param pFuncName - Name of the function to call
+	 * @param params - The params.
+	 * @return The value that the lua function returned
+	 * @remark The behavior is undefined if the function is called with an unknown <code>T</code> type
+	 */
+	template<typename T>
+	T CallFunc(const char *pFuncName, const LuaCallfuncParams& params);
+
+	//int GetUID() const { return m_UID; }
 	int GetPermissionFlags() const { return m_PermissionFlags; }
 	const char* GetFilename() const { return m_Filename.c_str(); }
-	const char* GetScriptTitle() const { return m_aScriptTitle; }
 	const char* GetScriptInfo() const { return m_aScriptInfo; }
-	bool GetScriptHasSettings() const { return m_ScriptHasSettings; }
-	bool GetScriptIsAutoload() const { return m_ScriptAutoload; }
-	bool SetScriptIsAutoload(bool NewVal) { bool ret = m_ScriptAutoload; m_ScriptAutoload = NewVal; return ret; }
 
 	CLua *Lua() const { return m_pLua; }
 	
@@ -86,9 +162,6 @@ public:
 private:
 	void OpenLua();
 	bool LoadFile(const char *pFilename);
-	bool CheckCertificate(const char *pFilename);
-
-	bool ScriptHasSettings();
 };
 
 #endif

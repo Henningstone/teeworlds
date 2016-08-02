@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.5)
 project(teeworlds)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
 include_directories(
         other/sdl/include
@@ -593,6 +593,6 @@ set(SOURCE_FILES
     src/tools/tileset_borderset.cpp
     src/versionsrv/mapversions.h
     src/versionsrv/versionsrv.cpp
-    src/versionsrv/versionsrv.h)
+    src/versionsrv/versionsrv.h src/engine/server/luafile.cpp src/engine/server/luacallers.cpp)
 
 add_executable(teeworlds ${SOURCE_FILES})

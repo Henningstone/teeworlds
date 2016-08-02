@@ -27,7 +27,12 @@
 */
 //==============================================================================
 
-class LuaException : public std::exception 
+#include <exception>
+#include <string>
+#include <lua.h>
+#include "LuaHelpers.h"
+
+class LuaException : public std::exception
 {
 private:
   lua_State* m_L;
